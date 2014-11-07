@@ -1,0 +1,28 @@
+{
+  "name": "adidem",
+  "version": "1.0.0",
+  "description": "Annotation-Based Design by Contract Library",
+  "keywords": [
+    "dbc", 
+    "contract",
+    "contracts",
+    "design by contract"
+  ],
+  "homepage": "http://github.com/eanderton/adidem"
+  "bugs": "http://github.com/eanderton/adidem/issues",
+  "license": "BSD-3-Clause",
+  "author": "Eric Anderton",
+  "files": [
+    "adidem.js",
+    "test.js",
+    "package.json" 
+  ],
+  "repository": {
+    "type" : "git",
+    "url" : "http://github.com/eanderton/adidem.git"
+  },
+  "devDependencies": {
+    "nodeunit": ">= 0.9.0" 
+  }, 
+  "url": "https://github.com/eanderton/adidem.git"
+}
