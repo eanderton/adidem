@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Annotation-Based Design by Contract Library",
   "keywords": [
-    "dbc",
+    "dbc", 
     "contract",
     "contracts",
     "design by contract"
@@ -15,21 +15,18 @@
   "files": [
     "adidem.js",
     "test.js",
-    "package.json"
+    "package.json" 
   ],
-  "main": "./adidem.js",
+  "main": "./lib",
   "directories": {
-  },
-  "scripts": {
-    "test": "./node_modules/.bin/jasmine-node ./test",
-    "browser": "phantomjs test/run-jasmine.js test/jasmine.html"
+    "lib": "./lib"
   },
   "repository": {
-    "type": "git",
-    "url": "http://github.com/eanderton/adidem.git"
+    "type" : "git",
+    "url" : "http://github.com/eanderton/adidem.git"
   },
   "devDependencies": {
-    "jasmine-node": "^1.14.5"
-  },
+    "jasmine": "2.1.0" 
+  }, 
   "url": "https://github.com/eanderton/adidem.git"
 }

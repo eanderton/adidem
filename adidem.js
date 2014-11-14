@@ -1,5 +1,5 @@
 /*
-  Ad Idem - Design by Contract Module for JavaScriptt
+  Ad Idem - Design by Contract Module for JavaScript
   - Core Library File
 
 Copyright (c) 2014, Eric Anderton
@@ -15,19 +15,60 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-(function(){ 'use strict';
+(function(root){ 'use strict';
+
+// Type tests
+
+function isFunction(value) {
+  return typeof value === 'function'; 
+}
+
+function isObject(value) {
+  return typeof value === 'object'; 
+}
+
+function isArray(value) {
+  return Object.prototype.toString.call(value) === '[object Array]';
+}
+
+function isString(value) {
+  return typeof value === 'string';
+}
+
+function isNumber(value) {
+  return typeof value === 'number';
+}
+
+function isUndefined(value) {
+  return typeof value === 'undefined';
+}
+
+function isNull(value) {
+  return typeof value === 'null';
+}
+
 
 // Rendition of Crockford's 'supplant' function for QnD string interpolation
 var format = function (fmt, o) {
-  return fmt.replace(/{([^{}]*)}/g,
-    function (a, b) {
-      var r = o[b];
-      return typeof r === 'string' || typeof r === 'number' ? r : a;
-    }
-  );
+  return fmt.replace(/{{([^{}]*)}}/g, function(a, b) {
+    var r = o[b];
+    if (isUndefined(r)) { return 'undefined'; }
+    if (isNull(r))      { return 'null'; }
+    if (isString(r))    { return '"' + r + '"'; }
+    if (isFunction(r))  { return 'function'; }
+    if (isArray(r))     { return 'array'; }
+    if (isObject(r))    { return 'object'; }
+    return r;
+  }).replace(/{([^{}]*)}/g, function (a, b) {
+    var r = o[b];
+    if (isString(r)) { return r; }
+    if (isNumber(r)) { return r; }
+    return a;
+  });
 };
 
 
+// regexes for function source parsing
 var FN_ARG_SPLIT = /\s*,\s*/;
 var FN_ARGS = /^function\s*[^\(]*\(\s*([^\)]*)\)/m;
 var FN_DECL = /^.*\)([^{]*){/m;
@@ -108,31 +149,15 @@ function ContractError() {
 ContractError.prototype = Object.create(Error.prototype);
 
 
-function isFunction(value) {
-  return typeof value === 'function'; 
-}
-
-
-function isObject(value) {
-  return typeof value === 'object'; 
-}
-
-
-function isArray(value) {
-  return Object.prototype.toString.call(value) === '[object Array]';
-}
-
-
+// stock set of annotations
 var annotationRegistry = {
+  '@null': isNull,
+  '@undefined': isUndefined,
   '@function': isFunction,
   '@object': isObject,
   '@array': isArray,
-  '@string': function(value) {
-    return typeof value === 'string';
-  },
-  '@number': function(value) {
-    return typeof value === 'number'; 
-  },
+  '@string': isString,
+  '@number': isNumber,
   '@iterable': function(value) {
     return isObject(value) || isArray(value);
   },
@@ -140,7 +165,7 @@ var annotationRegistry = {
     return isObject(value) && !isArray(value);
   },
   '@integer': function(value) { 
-    return typeof value === 'number' && 
+    return isNumber(value) &&
       value >= 0 && 
       parseInt(value) == value; 
   },
@@ -154,19 +179,13 @@ var annotationRegistry = {
     return !value;
   },
   '@defined': function(value) {
-    return value !== undefined;
+    return !isUndefined(value);
   },
   '@notnull': function(value) {
-    return value !== null;
+    return !isNull(value);
   },
   '@safe': function(value) {
-    return value !== null && value !== undefined;
-  },
-  '@null': function(value) {
-    return value === null;
-  },
-  '@undefined': function(value) {
-    return value === undefined;
+    return !isNull(value) && !isUndefined(value);
   },
   '@contract': function(value) {
     return isFunction(value) && hasContract(value);
@@ -187,7 +206,7 @@ function makeAnnotatedPre(paramName, annotationName) {
     }
     if (!ann(value, paramName, argMap)) {
       var precondition_failure = new ContractError(format(
-        'Argument for parameter "{0}", does not satisfy {1}: "{2}"', [
+        'Argument for parameter "{0}", does not satisfy {1}: {{2}}', [
         paramName, annotationName, value]));
       throw precondition_failure;
     }
@@ -207,7 +226,7 @@ function makeAnnotatedPost(annotationName) {
     }
     if(!ann(retval, null, argMap)) {
       var postcondition_error = new ContractError(format(
-        'Function return value does not satisfy {0}: "{1}"', [
+        'Function return value does not satisfy {0}: {{1}}', [
         annotationName, retval]));
       throw postcondition_error;
     }
@@ -224,7 +243,7 @@ function hasContract(fn) {
 // build map of arguments, keyed by position and name
 function getArgMap(names, args) {
   var argMap = {};
-  for (var ii in args) {
+  for (var ii=0; ii<args.length; ii++) {
     argMap[ii] = args[ii];
     if (ii < names.length) {
       argMap[names[ii]] = args[ii];
@@ -243,6 +262,8 @@ var makeContractWithMeta = function(meta, fn) {
 
   // the actual contract wrapper
   // runs preconditions, body, and postconditions against the arg map
+
+  // TODO: make multiple annotations an OR grouping, not an AND grouping
   var contract = function() {
     var argMap = getArgMap(contract._meta.names, arguments);
     for (var ii in contract._pre) {
@@ -291,8 +312,9 @@ var makeContractShorthand = function(values, fn) {
 
 // multi-contract dispatch.  Tries each contract, and calls
 // body on first contract that passes.
-var callMultiContract = function(fnArray, args) {
-    var firstException;
+var callContractUnion = function(fnArray, args) {
+    var exception;
+    var exceptionRank = -1;
     for (var ii in fnArray) {
       var fn = fnArray[ii];
       // just call it if there's no contract
@@ -307,8 +329,13 @@ var callMultiContract = function(fnArray, args) {
           fn._pre[ii](argMap);
         }
       } catch (e) {
-        firstException = firstException || e;
-        if (!(e instanceof ContractError)) {
+        if (e instanceof ContractError) {
+          // keep the most qualified contract exception
+          if (ii > exceptionRank) {
+            exception = e;
+            exceptionRank = ii;
+          }
+        } else {
           throw e;  // rethrow all but contract errors
         }
         continue;  // try next contract 
@@ -323,8 +350,8 @@ var callMultiContract = function(fnArray, args) {
     }
     // throw the last exception since everything failed 
     // TODO: better error output here (show all contracts?)
-    if (firstException !== undefined) {
-      throw firstException;
+    if (exception !== undefined) {
+      throw exception;
     }
 }
 
@@ -334,7 +361,12 @@ var callMultiContract = function(fnArray, args) {
 // fn [, fn ...]
 // object, fn [[object, fn] ...]
 // array, fn [[array, fn] ...]
-var makeMultiContract = function() {
+var makeContractUnion = function() {
+  // return something that's callable on zero args
+  if (arguments.length == 0) {
+    return function() {};  // no-op
+  }
+
   var fnArray = [];
   for (var ii = 0; ii < arguments.length; ii++) {
     var val = arguments[ii];
@@ -371,9 +403,14 @@ var makeMultiContract = function() {
     fnArray.push(makeContractWithMeta(meta, fn));
   }
 
+  // don't union if there's only one contract
+  if (fnArray.length == 1) {
+    return fnArray[0];
+  }
+
   // return a closure that calls the contracts in order
   return function() {
-    return callMultiContract(fnArray, arguments);
+    return callContractUnion(fnArray, arguments);
   }
 }
 
@@ -395,7 +432,6 @@ var registerAnnotationMap = function(map) {
     registerAnnotation(name, map[name]);
   }
 };
-
 
 // apply contracts
 makeContractShorthand = makeContractWithMeta(
@@ -423,21 +459,37 @@ registerAnnotationMap = makeContractShorthand(
   registerAnnotationMap);
 
 
-// export public parts
-module.exports = {
+// module definition
+var oldModule = root.adidem;
+var adidem = {
   ContractError: ContractError,
 
   hasContract: hasContract,
 
   hasAnnotation: hasAnnotation,
 
-  contract: makeMultiContract(
+  contract: makeContractUnion(
       parseContract, makeContractWithMeta, makeContractShorthand),
 
-  multi: makeMultiContract,
+  union: makeContractUnion,
   
-  register: makeMultiContract(
-      registerAnnotation, registerAnnotationMap)
+  register: makeContractUnion(
+      registerAnnotation, registerAnnotationMap),
+
+  noConflict: function() {
+    root.adidem = oldModule;
+    return adidem;
+  }
 };
 
-}());  // end module
+// export
+if (typeof(exports) !== 'undefined') {
+  if (typeof(module) !== 'undefined' && module.exports ) {
+    module.exports = adidem;
+  }
+  exports.adidem = adidem;
+} else {
+  root.adidem = adidem;
+}
+
+}(this));
